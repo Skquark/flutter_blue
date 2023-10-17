@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:flutter_blue_example/widgets.dart';
@@ -77,6 +78,7 @@ class FindDevicesScreen extends StatelessWidget {
         child: SingleChildScrollView(
           child: Column(
             children: <Widget>[
+              AdvertiseWidget(),
               StreamBuilder<List<BluetoothDevice>>(
                 stream: Stream.periodic(Duration(seconds: 2))
                     .asyncMap((_) => FlutterBlue.instance.connectedDevices),
@@ -149,6 +151,41 @@ class FindDevicesScreen extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class AdvertiseWidget extends StatefulWidget {
+  @override
+  State<AdvertiseWidget> createState() => _AdvertiseWidgetState();
+}
+
+class _AdvertiseWidgetState extends State<AdvertiseWidget> {
+  var _isAdvertising = false;
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: _advertiseHandle,
+      child: Text(_isAdvertising ? 'Stop advertising' : 'Start advertise'),
+    );
+  }
+
+  Future<void> _advertiseHandle() async {
+    if (_isAdvertising) {
+      await FlutterBlue.instance.stopAdvertising();
+      _isAdvertising = false;
+    } else {
+      final guid = Guid('00001111-0000-1000-8000-00805F9B34FB');
+      final list = Uint8List.fromList([1, 2, 3]);
+      await FlutterBlue.instance.startAdvertising(
+        AdvertisingMode.lowLatency(),
+        AdvertisingTxPower.txPowerMedium(),
+        guid,
+        123,
+        list,
+      );
+      _isAdvertising = true;
+    }
+    setState(() {});
   }
 }
 

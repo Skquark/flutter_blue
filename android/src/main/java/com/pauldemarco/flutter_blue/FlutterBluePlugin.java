@@ -15,6 +15,10 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.le.AdvertiseCallback;
+import android.bluetooth.le.AdvertiseData;
+import android.bluetooth.le.AdvertiseSettings;
+import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
@@ -264,6 +268,46 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
                 break;
             }
 
+            case "startAdvertising": {
+                byte[] callData = call.arguments();
+                Protos.AdvertisingSettings advSettings;
+                try {
+                    advSettings = Protos.AdvertisingSettings.newBuilder().mergeFrom(callData).build();
+                } catch (Exception e) {
+                    result.error("startScan", e.getMessage(), e);
+                    return;
+                }
+
+                BluetoothLeAdvertiser advertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
+                if (advertiser == null) {
+                    Log.w(TAG, "Failed to create advertiser");
+                    return;
+                }
+                AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                        .setAdvertiseMode(advSettings.getAdvertisingMode())
+                        .setConnectable(false)
+                        .setTimeout(0)
+                        .setTxPowerLevel(advSettings.getAdvertisingTxPower())
+                        .build();
+                UUID service = UUID.fromString(advSettings.getServiceUuid());
+
+                byte manufactureData[] = advSettings.getManufacturerData().toByteArray();
+                AdvertiseData data = new AdvertiseData.Builder()
+                        .setIncludeDeviceName(true)
+                        .setIncludeTxPowerLevel(false)
+                        .addServiceUuid(new ParcelUuid(service))
+                        .addManufacturerData(advSettings.getManufacturerId(), manufactureData)
+                        .build();
+
+                advertiser
+                        .startAdvertising(settings, data, mAdvertiseCallback);
+                result.success("Success");
+                break;
+            }
+            case "stopAdvertising":
+                mBluetoothAdapter.getBluetoothLeAdvertiser().stopAdvertising(mAdvertiseCallback);
+                result.success("Success");
+                break;
             case "getConnectedDevices":
             {
                 List<BluetoothDevice> devices = mBluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
@@ -681,6 +725,18 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
             }
         }
     }
+
+    private AdvertiseCallback mAdvertiseCallback = new AdvertiseCallback() {
+        @Override
+        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            Log.i(TAG, "LE Advertise Started.");
+        }
+
+        @Override
+        public void onStartFailure(int errorCode) {
+            Log.w(TAG, "LE Advertise Failed: "+errorCode);
+        }
+    };
 
     @Override
     public boolean onRequestPermissionsResult(
