@@ -14,6 +14,16 @@ class BluetoothDevice {
         name = p.name,
         type = BluetoothDeviceType.values[p.type.value];
 
+  /// Creates a BluetoothDevice with a predefined device ID. Be aware that the
+  /// device ID could change anytime so the proper way is to scan for the
+  /// device first. This constructor is created for a workaround to be able to
+  /// reconnect on Android to devices which has still an unreleased connection
+  /// with the phone after app restart.
+  BluetoothDevice.fromDeviceId(String deviceId)
+      : id = new DeviceIdentifier(deviceId),
+        name = deviceId,
+        type = BluetoothDeviceType.unknown;
+
   BehaviorSubject<bool> _isDiscoveringServices = BehaviorSubject.seeded(false);
   Stream<bool> get isDiscoveringServices => _isDiscoveringServices.stream;
 
