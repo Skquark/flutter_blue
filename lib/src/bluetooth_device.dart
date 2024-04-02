@@ -17,6 +17,25 @@ class BluetoothDevice {
   BehaviorSubject<bool> _isDiscoveringServices = BehaviorSubject.seeded(false);
   Stream<bool> get isDiscoveringServices => _isDiscoveringServices.stream;
 
+  Timer? _connectTimeoutTimer;
+  StreamSubscription<BluetoothDeviceState>? _stateSubscription;
+  Completer<BluetoothDeviceState>? _connectCompleter;
+  BluetoothDeviceState? _lastState;
+
+  void killPendingConnection() {
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
+    _stateSubscription?.cancel();
+    _stateSubscription = null;
+    if (_connectCompleter != null) {
+      if (!(_connectCompleter!.isCompleted)) {
+        return _connectCompleter!.completeError(
+          Exception('BLE pending connection killed'),
+        );
+      }
+    }
+  }
+
   /// Establishes a connection to the Bluetooth Device.
   Future<BluetoothDeviceState> connect({
     Duration? timeout,
@@ -26,37 +45,65 @@ class BluetoothDevice {
       ..remoteId = id.toString()
       ..androidAutoConnect = autoConnect;
 
-    //final res = await state.firstWhere((s) => s.state == BluetoothDeviceStateEnum.connected);
-    final nextStateCompleter = Completer<BluetoothDeviceState>();
+    // if we have a running connect process, return with the future
+    if (_connectCompleter != null) {
+      if (!(_connectCompleter!.isCompleted)) {
+        return _connectCompleter!.future;
+      }
+    }
+
+    // if we are connected return with the last state
+    if (_lastState != null && _lastState is BluetoothDeviceConnected) {
+      return _lastState!;
+    }
+
+    // else start a new connect process
+    _connectCompleter = Completer<BluetoothDeviceState>();
+    // this 2 call shouldn't be necessary so test it without them??
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
+    _stateSubscription?.cancel();
+    _stateSubscription = null;
+
     var firsStateArrived = false;
-
-    final stateSubscription = state.listen(
-      null,
-    );
-
-    stateSubscription.onError((err) {
-      stateSubscription.cancel();
-      nextStateCompleter.completeError(err);
-    });
-    stateSubscription.onData((state) {
+    _stateSubscription = state.listen((state) {
       if (firsStateArrived &&
           (state is BluetoothDeviceConnected ||
               state is BluetoothDeviceDisconnected)) {
-        stateSubscription.cancel();
-        nextStateCompleter.complete(state);
+        _connectTimeoutTimer?.cancel();
+        _stateSubscription!.cancel();
+        _stateSubscription = null;
+        _connectCompleter!.complete(state);
+        _connectCompleter = null;
         return;
       }
       firsStateArrived = true;
+    }, onError: (err) {
+      _connectTimeoutTimer?.cancel();
+      _stateSubscription!.cancel();
+      _stateSubscription = null;
+      _connectCompleter!.completeError(err);
+      _connectCompleter = null;
     });
+
+    if (timeout != null) {
+      _connectTimeoutTimer = Timer(timeout, () {
+        _stateSubscription?.cancel();
+        _connectCompleter!.completeError(TimeoutException('BLE connect'));
+        _connectCompleter = null;
+      });
+    }
+
+    final returnFuture = _connectCompleter!.future;
 
     await FlutterBlue.instance._channel
         .invokeMethod('connect', request.writeToBuffer());
 
-    return nextStateCompleter.future;
+    return returnFuture;
   }
 
   /// Cancels connection to the Bluetooth Device
-  Future<BluetoothDeviceState> disconnect(Duration ?timeout) async {
+  Future<BluetoothDeviceState> disconnect(Duration? timeout) async {
     final stateCompleter =
         state.firstWhere((state) => state is BluetoothDeviceDisconnected);
 
@@ -129,16 +176,22 @@ class BluetoothDevice {
     yield await FlutterBlue.instance._channel
         .invokeMethod('deviceState', id.toString())
         .then((buffer) => new protos.DeviceStateResponse.fromBuffer(buffer))
-        .then((p) => BluetoothDeviceState.fromId(
-            p.state.value, BluetoothStatusCode.fromId(p.status)));
+        .then((p) {
+      _lastState = BluetoothDeviceState.fromId(
+          p.state.value, BluetoothStatusCode.fromId(p.status));
+      return _lastState!;
+    });
 
     yield* FlutterBlue.instance._methodStream
         .where((m) => m.method == "DeviceState")
         .map((m) => m.arguments)
         .map((buffer) => new protos.DeviceStateResponse.fromBuffer(buffer))
         .where((p) => p.remoteId == id.toString())
-        .map((p) => BluetoothDeviceState.fromId(
-            p.state.value, BluetoothStatusCode.fromId(p.status)));
+        .map((p) {
+      _lastState = BluetoothDeviceState.fromId(
+          p.state.value, BluetoothStatusCode.fromId(p.status));
+      return _lastState!;
+    });
   }
 
   /// The MTU size in bytes
