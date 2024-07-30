@@ -245,39 +245,18 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
 
             case "startScan":
             {
-
-                ArrayList<String> permissions = new ArrayList<>();
-
-                if (Build.VERSION.SDK_INT >= 31) { // Android 12 (October 2021)
-                    permissions.add(Manifest.permission.BLUETOOTH_SCAN);
-                    // it is unclear why this is needed, but some phones throw a
-                    // SecurityException AdapterService getRemoteName, without it
-                    permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
-                }
-
-                if (Build.VERSION.SDK_INT <= 30) { // Android 11 (September 2020)
-                    permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
-                }
-
-
-                List<String> permissionsNeeded = new ArrayList<>();
-                for (String permission : permissions) {
-                    if (permission != null && ContextCompat.checkSelfPermission(context, permission)
-                            != PackageManager.PERMISSION_GRANTED) {
-                        permissionsNeeded.add(permission);
-                    }
-                }
-
-                if (!permissionsNeeded.isEmpty()) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                        != PackageManager.PERMISSION_GRANTED) {
                     ActivityCompat.requestPermissions(
                             activityBinding.getActivity(),
-                            permissionsNeeded.toArray(new String[0]),
+                            new String[] {
+                                    Manifest.permission.ACCESS_FINE_LOCATION
+                            },
                             REQUEST_FINE_LOCATION_PERMISSIONS);
                     pendingCall = call;
                     pendingResult = result;
                     break;
                 }
-
                 startScan(call, result);
                 break;
             }
