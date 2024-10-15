@@ -32,6 +32,23 @@ class FlutterBlue {
   Future<bool> get isAvailable =>
       _channel.invokeMethod('isAvailable').then<bool>((d) => d);
 
+  /// Checks whether Bluetooth is initialized.
+  Future<bool> isFlutterBlueInitialized() async {
+    return _channel
+        .invokeMethod('isFlutterBlueInitialized')
+        .then<bool>((d) => d);
+  }
+
+  /// Initialize Bluetooth if it isn't already.
+  Future<void> initializeFlutterBlue() async {
+    final bool isInitialized = await isFlutterBlueInitialized();
+    if (isInitialized) {
+      return;
+    }
+
+    _channel.invokeMethod('initializeFlutterBlue');
+  }
+
   /// Checks if Bluetooth functionality is turned on
   Future<bool> get isOn => _channel.invokeMethod('isOn').then<bool>((d) => d);
 

@@ -50,7 +50,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     FlutterEventChannel* stateChannel = [FlutterEventChannel eventChannelWithName:NAMESPACE @"/state" binaryMessenger:[registrar messenger]];
     FlutterBluePlugin* instance = [[FlutterBluePlugin alloc] init];
     instance.channel = channel;
-    instance.centralManager = [[CBCentralManager alloc] initWithDelegate:instance queue:nil];
+    instance.centralManager = NULL;
     instance.scannedPeripherals = [NSMutableDictionary new];
     instance.connectedPeripherals = [NSMutableDictionary new];
     instance.disconnectedPeripherals = [NSMutableArray new];
@@ -67,6 +67,14 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     [registrar addMethodCallDelegate:instance channel:channel];
 }
 
+- (void) initializeFlutterBlue {
+    self.centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil];
+}
+
+- (bool) isFlutterBlueInitialized {
+    return self.centralManager != NULL;
+}
+
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
     if ([@"setLogLevel" isEqualToString:call.method]) {
         NSNumber *logLevelIndex = [call arguments];
@@ -75,6 +83,16 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     } else if ([@"state" isEqualToString:call.method]) {
         FlutterStandardTypedData *data = [self toFlutterData:[self toBluetoothStateProto:self->_centralManager.state]];
         result(data);
+    } else if([@"initializeFlutterBlue" isEqualToString:call.method]) {
+        [self initializeFlutterBlue];
+        result(@(YES));
+    } else if([@"isFlutterBlueInitialized" isEqualToString:call.method]) {
+        bool isInitialized = self.isFlutterBlueInitialized;
+        if (isInitialized) {
+            result(@(YES));
+        } else {
+            result(@(NO));
+        }
     } else if([@"isAvailable" isEqualToString:call.method]) {
         if(self.centralManager.state != CBManagerStateUnsupported && self.centralManager.state != CBManagerStateUnknown) {
             result(@(YES));
