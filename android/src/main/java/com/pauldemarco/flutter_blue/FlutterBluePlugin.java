@@ -237,6 +237,18 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
                 break;
             }
 
+            case "isFlutterBlueInitialized":
+            {
+              result.success(true);
+              break;
+            }
+
+            case "initializeFlutterBlue":
+            {
+              result.success(null);
+              break;
+            }
+
             case "isOn":
             {
                 result.success(mBluetoothAdapter.isEnabled());
