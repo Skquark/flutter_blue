@@ -1,4 +1,4 @@
-name: flutter_blue_fork
+name: flutter_blue
 description:
   Flutter plugin for connecting and communicating with Bluetooth Low Energy devices,
   on Android and iOS
